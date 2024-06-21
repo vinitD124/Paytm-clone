@@ -1,8 +1,10 @@
 const zod = require("zod");
-const { User, Account } = require("../database");
+const { User, Account,Transaction } = require("../database");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { default: mongoose } = require("mongoose");
+
+
 
 exports.getBalance = async (req, res) => {
   const account = await Account.findOne({
@@ -23,16 +25,13 @@ exports.transferFund = async (req, res) => {
   try {
     const { amount, to } = req.body;
 
-    if (!ObjectId.isValid(req.userId) || !ObjectId.isValid(to)) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID format",
-      });
-    }
+  
+    console.log(amount)
 
-    const userId = req.userId
     const toUserId =  to
+    const userId = req.userId
+
+    console.log(req.userId)
 
     if (toUserId === userId) {
       await session.abortTransaction();
@@ -42,10 +41,13 @@ exports.transferFund = async (req, res) => {
       });
     }
 
+    console.log(userId)
+
     const account = await Account.findOne({
       userId: userId,
     }).session(session);
 
+    console.log(account)
 
 
     if (!account || account.balance < amount) {
@@ -86,6 +88,23 @@ exports.transferFund = async (req, res) => {
       { $inc: { balance: amount } }
     ).session(session);
 
+
+    await Transaction.create({
+        type: 'send',
+        fromUserId: userId,
+        toUserId: toUserId,
+        amount: amount,
+    })
+
+
+    await Transaction.create({
+        type: 'receive',
+        fromUserId: userId, 
+        toUserId: toUserId,
+        amount: amount,
+    })
+
+
     await session.commitTransaction();
 
     res.status(200).json({
@@ -106,3 +125,34 @@ exports.transferFund = async (req, res) => {
     session.endSession();
   }
 };
+
+
+
+exports.getTransactionHistory = async (req,res)=>{
+
+    try {
+
+        const transactions = await Transaction.find({
+            $or:[
+                { fromUserId: req.userId , type:'send'},
+                { toUserId: req.userId, type:'receive' },
+            ]
+        }).populate('fromUserId')
+        .populate('toUserId')
+        .exec()
+
+        res.status(200).json({
+            success: true,
+            transactions: transactions,
+          });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching transaction history',
+            error: error.message,
+          });
+    }
+
+
+}

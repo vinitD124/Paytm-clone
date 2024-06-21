@@ -165,34 +165,33 @@ exports.updateUser = async (req, res) => {
   }
 };
 
+
+
 exports.getBulkUser = async (req, res) => {
   const filter = req.query.filter || "";
 
-  const users = await User.find({
-    $or: [
-      {
-        firstName: {
-          $regex: filter,
-        },
-      },
-      {
-        lastName: {
-          $regex: filter,
-        },
-      },
-    ],
-  });
+ 
 
+  try {
+    const users = await User.find({
+      fullName: {
+        $regex: filter,
+      },
+    });
 
-  res.json({
-    user:users.map(user=>({
-        userName:user.userName,
-        firstName:user.firstName,
-        lastName:user.lastName,
-        _id:user._id
-    }))
-  })
+    console.log(users);
+
+    res.json({
+      users: users.map(user => ({
+        fullName: user.fullName,
+        _id: user._id
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error fetching users' });
+  }
 };
+
 
 
 exports.getUser = async (req,res)=>{
@@ -207,4 +206,101 @@ exports.getUser = async (req,res)=>{
       })
     
 
+}
+
+
+exports.googleHandler = async (req,res)=>{
+
+  try {
+
+    let userId = req.userId
+
+    let {email,displayName,photoURL} = req.body
+
+    if(!email || !displayName || !photoURL){
+      return res.status(403).json({
+        success:false,
+        message:'Please provide all data'
+      })
+    }
+
+
+
+    const user = await User.findOne({
+        email:email
+    })
+
+    
+
+    if(user){
+      console.log("user")
+      const token = jwt.sign({id:user._id},'TOKEN')
+
+      const {password:hashedPassword, ...rest} = user._doc
+
+      const cookieOptions = {
+        httpOnly: true,
+        sameSite: "none",
+        secure: true,
+        maxAge: 3 * 60 * 1000,
+      };
+
+    
+      res.cookie('access_token', token, cookieOptions)
+        .status(200)
+        .json({
+          success:true,   
+          message:'Login Succesfull',
+          ...rest,
+          token
+        });
+
+    }
+
+    else{
+     
+      const generatedPassword = Math.random().toString(36).slice(-8) +  Math.random().toString(36).slice(-8)
+
+  let hashedPassword = await bcrypt.hash(generatedPassword,10)
+
+
+  const newUser = await User.create({
+    email:email,
+    password:hashedPassword,
+    fullName:displayName,
+    profilePicture:photoURL
+  })
+
+
+
+  await newUser.save();
+  const token = jwt.sign({ id: newUser._id }, 'TOKEN');
+  const { password: hashedPassword2, ...rest } = newUser._doc;
+  const expiryDate = new Date(Date.now() + 3600000); 
+
+  await Account.create({
+    userId:newUser._id,
+    balance: parseInt(Math.random() * 10000),
+  });
+
+ 
+
+  res
+    .cookie('access_token', token, {
+      httpOnly: true,
+      expires: expiryDate,
+    })
+    .status(200)
+    .json({
+      success:true,
+      message:'Login Succesfull',
+      ...rest,token});
+    }
+
+  } catch (error) {
+    return res.status(403).json({
+      success:false,
+      message:error.message
+    })
+  }
 }

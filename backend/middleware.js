@@ -13,12 +13,18 @@ const authMiddleware = async (req, res, next) => {
         });
     }
 
+    
+
     const token = authHeader.split(' ')[1];
 
+
+
+    
     try {
         
         const decode = jwt.verify(token, 'TOKEN');
-        req.userId = decode.userId;
+        req.userId = decode.id;
+    
         next();
     } catch (error) {
         return res.status(403).json({
