@@ -1,11 +1,6 @@
 const mongoose = require('mongoose')
 const { string } = require('zod')
 
-mongoose.connect(process.env.DATABASE_URL).then(()=>{
-    console.log("database connected succesfully")
-}).catch((error)=>{
-    console.log("something went wrong while connecting db " + error)
-})
 
 const userSchema = new mongoose.Schema({
     email:String,
@@ -61,7 +56,6 @@ const transactionSchema = new mongoose.Schema({
 
 
 })
-
 
 
 const User = mongoose.model('User',userSchema)
